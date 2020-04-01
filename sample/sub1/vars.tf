@@ -1,0 +1,3 @@
+variable "bar" {
+  type = string
+}

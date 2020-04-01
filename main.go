@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func walkDir(path, version string) {
+func walkDir(path string) {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		log.Fatal(err)
@@ -30,7 +30,7 @@ func walkDir(path, version string) {
 				// skip module dirs
 				continue
 			}
-			walkDir(dir, version)
+			walkDir(dir)
 		}
 
 		if found {
@@ -49,7 +49,7 @@ func walkDir(path, version string) {
 		}
 
 		// best attempt to identifying correct folder
-		matched, err := regexp.MatchString(`main|provider|remote`, f.Name())
+		matched, err := regexp.MatchString(`main|provider|remote|vars`, f.Name())
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -57,6 +57,22 @@ func walkDir(path, version string) {
 		if !matched {
 			// skip files not matching pattern
 			continue
+		}
+
+		// best attempt to identifying hcl syntax
+		version := "0.12.24"
+		if f.Name() == "vars.tf" {
+			content, err := ioutil.ReadFile(dir)
+			if err != nil {
+				log.Fatal(err)
+			}
+			hcl1, err := isLegacy(content)
+			if err != nil {
+				log.Fatal(err)
+			}
+			if hcl1 {
+				version = "0.11.14"
+			}
 		}
 
 		tfv := filepath.Join(filepath.Dir(dir), ".terraform-version")
@@ -69,6 +85,10 @@ func walkDir(path, version string) {
 	}
 }
 
+func isLegacy(b []byte) (bool, error) {
+	return regexp.MatchString(`(type.+=.+"string")`, string(b))
+}
+
 func main() {
-	walkDir(".", "0.12.24")
+	walkDir(".")
 }

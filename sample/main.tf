@@ -1,6 +1,4 @@
-variable "bar" {
-  type = "string"
-}
+
 
 locals {
   foo = "${var.bar}"
