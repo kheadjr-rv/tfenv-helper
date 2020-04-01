@@ -1,0 +1,8 @@
+version: "3"
+projects:
+  - dir: ./sample
+    terraform_version: v0.11.14
+  - dir: ./sample/sub1
+    terraform_version: v0.12.24
+  - dir: ./sample/sub2
+    terraform_version: v0.12.24

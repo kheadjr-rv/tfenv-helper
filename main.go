@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -10,10 +11,13 @@ import (
 	"strings"
 
 	"github.com/runatlantis/atlantis/server/events/yaml/raw"
+
+	"gopkg.in/yaml.v3"
 )
 
 type atlantis struct {
-	Projects []raw.Project `yaml:"projects,omitempty"`
+	Version  int            `yaml:"version,omitempty"`
+	Projects []*raw.Project `yaml:"projects,omitempty"`
 }
 
 var tfmap map[string]string = make(map[string]string, 0)
@@ -138,11 +142,49 @@ func isLegacy(b []byte) (bool, error) {
 	return regexp.MatchString(`(type.+=.+"string")`, string(b))
 }
 
-func main() {
-	walkHcl(".")
-	walkAtlantis(".")
-
-	for k, v := range tfmap {
-		fmt.Printf("%s = %s\n", k, v)
+func newAtlantis(src string, m map[string]string) {
+	content, err := ioutil.ReadFile(src)
+	if err != nil {
+		log.Fatal(err)
 	}
+
+	a := atlantis{}
+	err = yaml.Unmarshal(content, &a)
+	if err != nil {
+		log.Fatalf("cannot unmarshal atlantis: %v", err)
+	}
+
+	for _, project := range a.Projects {
+		value, ok := m[*project.Dir]
+		if !ok {
+			continue
+		}
+		version := value
+		project.TerraformVersion = &version
+	}
+
+	data, err := yaml.Marshal(a)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = ioutil.WriteFile("./atlantis-generated.yaml", data, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func main() {
+
+	atlantis := flag.Bool("atlantis", false, "generates new atlantis yaml")
+
+	flag.Parse()
+
+	walkHcl(".")
+
+	if *atlantis {
+		walkAtlantis(".")
+		newAtlantis("atlantis.yaml", tfmap)
+	}
+
 }
