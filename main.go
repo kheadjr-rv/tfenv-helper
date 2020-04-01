@@ -4,12 +4,62 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/runatlantis/atlantis/server/events/yaml/raw"
 )
 
-func walkDir(path string) {
+type atlantis struct {
+	Projects []raw.Project `yaml:"projects,omitempty"`
+}
+
+var tfmap map[string]string = make(map[string]string, 0)
+
+func walkAtlantis(path string) {
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var dir string
+	for _, f := range files {
+		dir = filepath.Join(path, f.Name())
+
+		if f.IsDir() {
+			if strings.HasPrefix(f.Name(), ".") {
+				// skip hidden dirs
+				continue
+			}
+
+			if strings.Contains(f.Name(), "modules") {
+				// skip module dirs
+				continue
+			}
+			walkAtlantis(dir)
+		}
+
+		if f.Name() != ".terraform-version" {
+			continue
+		}
+
+		content, err := ioutil.ReadFile(dir)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		baseDir := fmt.Sprintf("./%s", filepath.Dir(dir))
+		tfVersion := fmt.Sprintf("v%s", content)
+		tfmap[baseDir] = tfVersion
+
+		// fmt.Printf("%s = %s\n", dir, content)
+
+	}
+
+}
+
+func walkHcl(path string) {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		log.Fatal(err)
@@ -30,7 +80,7 @@ func walkDir(path string) {
 				// skip module dirs
 				continue
 			}
-			walkDir(dir)
+			walkHcl(dir)
 		}
 
 		if found {
@@ -80,7 +130,6 @@ func walkDir(path string) {
 		if err != nil {
 			log.Fatal(err)
 		}
-
 		fmt.Println(filepath.Dir(dir))
 	}
 }
@@ -90,5 +139,10 @@ func isLegacy(b []byte) (bool, error) {
 }
 
 func main() {
-	walkDir(".")
+	walkHcl(".")
+	walkAtlantis(".")
+
+	for k, v := range tfmap {
+		fmt.Printf("%s = %s\n", k, v)
+	}
 }
